@@ -1,20 +1,31 @@
 {
   "name": "chamba-bot",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
+  "description": "Bot de vacantes remotas a Telegram",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DavidCortesA/chamba-bot.git"
   },
-  "keywords": [],
-  "author": "",
+  "author": "David Cortez",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/DavidCortesA/chamba-bot/issues"
   },
-  "homepage": "https://github.com/DavidCortesA/chamba-bot#readme"
+  "homepage": "https://github.com/DavidCortesA/chamba-bot#readme",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
 }
