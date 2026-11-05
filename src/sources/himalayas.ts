@@ -1,4 +1,5 @@
-import { type Source, UA, stripHtml } from "./types.js";
+import { normalizePeriod } from "../salary.js";
+import { type Source, UA, asList, stripHtml, toDate } from "./types.js";
 
 type HimalayasJob = {
   title?: string;
@@ -11,9 +12,11 @@ type HimalayasJob = {
   maxSalary?: number | null;
   currency?: string;
   salaryPeriod?: string;
-  seniority?: string;
+  seniority?: string | string[];
   employmentType?: string;
   locationRestrictions?: string[];
+  categories?: string[];
+  pubDate?: number | string;
 };
 
 type HimalayasResponse = {
@@ -57,28 +60,29 @@ export const himalayas: Source = {
     return jobs
       .filter((job) => job.title && job.applicationLink)
       .map((job) => {
-        const salary =
-          job.minSalary != null
-            ? `${job.currency ?? ""} ${job.minSalary}-${job.maxSalary ?? job.minSalary} ${job.salaryPeriod ?? "annual"}`
-            : "Salary not disclosed";
-
-        const locations = job.locationRestrictions?.length
-          ? job.locationRestrictions.join(", ")
-          : "Worldwide";
+        const hasSalary = job.minSalary != null || job.maxSalary != null;
+        const locations = asList(job.locationRestrictions);
 
         return {
           source: "Himalayas",
           url: job.applicationLink!,
           title: job.title!,
           company: job.companyName ?? "",
-          description: [
-            stripHtml(job.description ?? job.excerpt ?? ""),
-            `Salary: ${salary}`,
-            `Seniority: ${job.seniority ?? "Not specified"}`,
-            `Employment: ${job.employmentType ?? "Not specified"}`,
-            `Eligible locations: ${locations}`,
-            `Source: Himalayas`,
-          ].join("\n"),
+          description: stripHtml(job.description ?? job.excerpt ?? ""),
+          // Sin restricciones = abierto al mundo
+          location: locations.length ? locations.join(", ") : "Worldwide",
+          seniority: asList(job.seniority).join(", ") || undefined,
+          employmentType: job.employmentType || undefined,
+          tags: asList(job.categories),
+          postedAt: toDate(job.pubDate),
+          salary: hasSalary
+            ? {
+                min: job.minSalary ?? null,
+                max: job.maxSalary ?? null,
+                currency: job.currency ?? "USD",
+                period: normalizePeriod(job.salaryPeriod),
+              }
+            : null,
         };
       });
   },

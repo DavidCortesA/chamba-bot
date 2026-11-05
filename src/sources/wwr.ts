@@ -1,4 +1,4 @@
-import { Source, UA, stripHtml } from "./types.js";
+import { Source, UA, stripHtml, toDate } from "./types.js";
 
 const FEEDS = [
   "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",
@@ -28,12 +28,27 @@ export const wwr: Source = {
         const title = idx > 0 ? raw.slice(idx + 1).trim() : raw;
         const url = tag(it, "link") || tag(it, "guid");
         if (!url) continue;
+
+        // El RSS trae campos extra: <region>, <country>, <skills>, <type>
+        const location = [tag(it, "region"), tag(it, "country")]
+          .map((s) => stripHtml(s))
+          .filter(Boolean)
+          .join(", ");
+        const skills = stripHtml(tag(it, "skills"))
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
         out.push({
           source: "WeWorkRemotely",
           url,
           title,
           company,
           description: stripHtml(tag(it, "description")),
+          location: location || undefined,
+          employmentType: stripHtml(tag(it, "type")) || undefined,
+          tags: skills,
+          postedAt: toDate(tag(it, "pubDate")),
         });
       }
     }

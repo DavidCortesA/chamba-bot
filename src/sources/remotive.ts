@@ -1,4 +1,5 @@
-import { Source, UA, stripHtml } from "./types.js";
+import { parseSalaryText } from "../salary.js";
+import { Source, UA, stripHtml, toDate } from "./types.js";
 
 type Item = {
   url: string;
@@ -7,6 +8,9 @@ type Item = {
   candidate_required_location?: string;
   description?: string;
   tags?: string[];
+  salary?: string;
+  job_type?: string;
+  publication_date?: string;
 };
 
 export const remotive: Source = {
@@ -23,7 +27,13 @@ export const remotive: Source = {
       url: i.url,
       title: i.title,
       company: i.company_name,
-      description: `${i.candidate_required_location ?? ""} ${(i.tags ?? []).join(" ")} ${stripHtml(i.description)}`,
+      description: stripHtml(i.description),
+      location: i.candidate_required_location?.trim() || undefined,
+      employmentType: i.job_type?.replace(/_/g, " ") || undefined,
+      tags: i.tags ?? [],
+      postedAt: toDate(i.publication_date),
+      // Campo de texto libre: "$80k - $100k", "50-70 USD/hour"...
+      salary: i.salary ? parseSalaryText(i.salary) : null,
     }));
   },
 };

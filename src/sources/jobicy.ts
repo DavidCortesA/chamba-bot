@@ -1,4 +1,5 @@
-import { type Source, UA, stripHtml } from "./types.js";
+import { normalizePeriod } from "../salary.js";
+import { type Source, UA, asList, stripHtml, toDate } from "./types.js";
 
 type JobicyJob = {
   id?: number;
@@ -10,6 +11,7 @@ type JobicyJob = {
   jobGeo?: string;
   jobLevel?: string;
   jobType?: string[];
+  jobIndustry?: string[];
   salaryMin?: number;
   salaryMax?: number;
   salaryCurrency?: string;
@@ -72,25 +74,27 @@ export const jobicy: Source = {
     return jobs
       .filter((job) => job.jobTitle && job.url)
       .map((job) => {
-        const salary =
-          job.salaryMin != null
-            ? `${job.salaryCurrency ?? ""} ${job.salaryMin}-${job.salaryMax ?? job.salaryMin} ${job.salaryPeriod ?? "unknown"}`
-            : "Salary not disclosed";
+        const hasSalary = job.salaryMin != null || job.salaryMax != null;
 
         return {
           source: "Jobicy",
           url: job.url!,
           title: job.jobTitle!,
           company: job.companyName ?? "",
-          description: [
-            stripHtml(job.jobDescription ?? job.jobExcerpt ?? ""),
-            `Salary: ${salary}`,
-            `Location: ${job.jobGeo ?? "Not specified"}`,
-            `Seniority: ${job.jobLevel ?? "Not specified"}`,
-            `Employment: ${job.jobType?.join(", ") ?? "Not specified"}`,
-            `Published: ${job.pubDate ?? "Not specified"}`,
-            `Source: Jobicy`,
-          ].join("\n"),
+          description: stripHtml(job.jobDescription ?? job.jobExcerpt ?? ""),
+          location: job.jobGeo?.trim() || undefined,
+          seniority: job.jobLevel || undefined,
+          employmentType: asList(job.jobType).join(", ") || undefined,
+          tags: asList(job.jobIndustry),
+          postedAt: toDate(job.pubDate),
+          salary: hasSalary
+            ? {
+                min: job.salaryMin ?? null,
+                max: job.salaryMax ?? null,
+                currency: job.salaryCurrency ?? "USD",
+                period: normalizePeriod(job.salaryPeriod),
+              }
+            : null,
         };
       });
   },
