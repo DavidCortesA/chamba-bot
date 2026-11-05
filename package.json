@@ -1,17 +1,20 @@
 {
   "name": "chamba-bot",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "Bot de vacantes remotas a Telegram",
   "scripts": {
     "start": "tsx src/index.ts",
+    "window": "tsx src/index.ts window",
+    "scrape": "tsx src/index.ts scrape",
     "commands": "tsx src/index.ts commands",
     "bot": "tsx src/index.ts listen",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
-    "build": "tsc",
-    "dev": "tsx watch src/index.ts"
+    "build": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "deploy": "wrangler deploy"
   },
   "repository": {
     "type": "git",
@@ -29,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.158.0"
   }
 }

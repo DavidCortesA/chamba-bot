@@ -30,7 +30,7 @@ Fuentes: RemoteOK · Remotive · WeWorkRemotely · Himalayas · Jobicy.
 
 ## Comandos
 
-Escribir texto suelto también busca.
+Escribir texto suelto también busca; un saludo ("hola", "buenas") te responde por tu nombre.
 
 | Comando | Qué hace |
 | --- | --- |
@@ -72,6 +72,8 @@ Variables de entorno:
 | `TELEGRAM_CHAT_ID` | Tu chat id. El bot **ignora a cualquier otro chat** |
 | `MIN_SCORE` | Puntaje mínimo por defecto (5). `/minscore` lo sobrescribe |
 | `MAX_PER_RUN` | Máximo de avisos por ejecución (10). `/lote` lo sobrescribe |
+| `WINDOW_SECONDS` | Duración de la ventana de escucha en modo `window` (270) |
+| `SCRAPE_EVERY_MIN` | Minutos entre búsquedas de vacantes en modo `window` (25) |
 
 Las tablas y columnas nuevas se crean solas en cada ejecución (`ensureSchema`); no hay que migrar nada a mano. Tu configuración se guarda en la tabla `bot_state`.
 
@@ -79,23 +81,65 @@ Las tablas y columnas nuevas se crean solas en cada ejecución (`ensureSchema`);
 
 | Comando | Modo |
 | --- | --- |
-| `npm start` | Atiende comandos pendientes, busca vacantes y avisa (lo que usa el cron) |
+| `npm run scrape` | **Lo que usa GitHub Actions.** Solo busca vacantes y avisa (los comandos los atiende el Worker) |
+| `npm run window` | Alternativa sin Cloudflare: escucha ~4.5 min y busca vacantes si pasaron ≥ 25 min |
+| `npm run deploy` | Despliega el Worker (`wrangler deploy`) |
+| `npm start` | Una sola pasada: atiende comandos pendientes, busca vacantes y avisa |
 | `npm run commands` | Solo atiende comandos pendientes |
 | `npm run bot` | Escucha Telegram sin parar y responde al instante (uso local) |
 | `npm test` | Pruebas unitarias |
 | `npm run typecheck` | Verifica tipos |
 
-### GitHub Actions
+### Arquitectura (gratis)
 
-`.github/workflows/jobs.yml` corre `npm start` cada 30 minutos. Como no hay un servidor encendido, **los comandos se responden cuando corre el workflow** (hasta 30 min de espera). Para respuesta inmediata usa `npm run bot` en tu máquina o en un servidor.
+```
+Telegram ──webhook──▶ Cloudflare Worker (src/worker.ts) ──▶ Neon   → responde al instante
+GitHub Actions (cada 30 min, npm run scrape) ──────────────▶ Neon + Telegram → busca y avisa
+```
 
-> No corras `npm run bot` y el workflow a la vez con el mismo bot: Telegram solo permite un consumidor de `getUpdates` y los comandos se repartirían entre los dos.
+### 1. Cloudflare Worker (comandos y botones)
+
+1. En Cloudflare: **Workers & Pages → Create → Import a repository** y elige este repo. Nombre del Worker: `chamba-bot` (debe coincidir con `wrangler.jsonc`).
+2. En el formulario deja el **Build command vacío** y el **Deploy command** como `npx wrangler deploy`.
+3. Tras el primer deploy, en **Settings → Variables and Secrets** agrega como **Secret**:
+
+   | Secret | Valor |
+   | --- | --- |
+   | `DATABASE_URL` | Cadena de conexión de Neon |
+   | `TELEGRAM_TOKEN` | Token del bot |
+   | `TELEGRAM_CHAT_ID` | Tu chat id (el bot ignora a cualquier otro) |
+   | `WEBHOOK_SECRET` | Una cadena larga inventada por ti (solo `A-Z a-z 0-9 _ -`), p. ej. `openssl rand -hex 24` |
+   | `MIN_SCORE`, `MAX_PER_RUN` | Opcionales |
+
+4. Registra el webhook **una sola vez** abriendo en el navegador:
+
+   ```
+   https://chamba-bot.<tu-subdominio>.workers.dev/setup?key=<WEBHOOK_SECRET>
+   ```
+
+   Responde `{"ok": true, "action": "webhook registrado"}` y deja listo el menú de comandos. Después escríbele `hola` al bot.
+
+- `.../setup?key=<WEBHOOK_SECRET>&delete=1` quita el webhook (para usar `npm run bot` en local).
+- `GET /` responde "ChambaBot activo" para comprobar que el Worker está arriba.
+- Cada actualización se valida con el header secreto de Telegram; sin él, 401.
+- Si cambias a otro bot, crea otro Worker (otro nombre) con sus propios secretos y su propio `/setup`. **Usa una base de datos de Neon distinta por bot** (o un branch de Neon): si comparten base, se pisan la configuración, las vacantes y el estado.
+
+### 2. GitHub Actions (búsqueda de vacantes)
+
+`.github/workflows/jobs.yml` corre `npm run scrape` cada 30 minutos con los secretos `DATABASE_URL`, `TELEGRAM_TOKEN` y `TELEGRAM_CHAT_ID` del repositorio (**Settings → Secrets and variables → Actions**). No lee mensajes: con el webhook activo Telegram no permite `getUpdates`.
+
+> No corras `npm run bot` con el webhook activo (quita el webhook con `/setup?...&delete=1`): `npm run bot` lo borra al arrancar.
+
+### Sin Cloudflare
+
+Usa `npm run window` en el workflow (cron `*/5`): escucha Telegram ~4.5 min por ventana y busca vacantes si ya tocó. Es gratis en repositorios públicos pero corre casi continuo.
 
 ## Estructura
 
 ```
 src/
-  index.ts        orquestador (modos run / commands / listen)
+  worker.ts       Cloudflare Worker (webhook de Telegram + /setup)
+  index.ts        orquestador (modos run / scrape / commands / listen / window)
   commands.ts     comandos y botones de Telegram
   telegram.ts     API de Telegram, menú de comandos y teclado
   db.ts           esquema, consultas, re-puntuación y estadísticas

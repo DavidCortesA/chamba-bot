@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Debe coincidir con el nombre del Worker creado en el dashboard de Cloudflare
+  "name": "chamba-bot",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-09-01",
+  // Necesario para process.env, Buffer y el driver de Neon
+  "compatibility_flags": ["nodejs_compat"],
+  // Los secretos se configuran en el dashboard; que un deploy no borre variables
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

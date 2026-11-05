@@ -71,6 +71,24 @@ async function cmdHelp() {
   await sendHtml(HELP, { reply_markup: QUICK_KEYBOARD });
 }
 
+const GREETING =
+  /^[¡!\s]*(hola+|holi+|hey+|buenas|buenos d[ií]as|buen d[ií]a|buenas (?:tardes|noches)|hello|hi|qu[eé] onda|qu[eé] tal|saludos)[\s!.¡?]*$/i;
+
+/** Saludo por nombre (el que tienes en Telegram) con un resumen de cómo está todo */
+async function cmdGreet(name: string, withHelp: boolean) {
+  const s = await getSettings();
+  const pending = await countJobs(pendingFilter(s));
+  const hello = `👋 ¡Hola${name ? `, <b>${esc(name)}</b>` : ""}!`;
+  const status = s.paused
+    ? "⏸ Tus avisos están en pausa (/reanudar)."
+    : `Tengo <b>${pending}</b> vacantes pendientes de avisarte.`;
+  if (withHelp) {
+    await sendHtml(`${hello} ${status}\n\n${HELP}`, { reply_markup: QUICK_KEYBOARD });
+  } else {
+    await sendHtml(`${hello} ${status}\n\nPrueba /top para ver lo mejor ahora, o /ayuda para ver todo lo que sé hacer.`);
+  }
+}
+
 // ---------- Utilidades de presentación ----------
 
 const salaryFilterText = (s: Settings) =>
@@ -526,7 +544,9 @@ export async function handleUpdate(u: TgUpdate) {
 
   let text = msg.text.trim();
   text = BUTTON_TO_COMMAND[text] ?? text;
-  // Texto suelto = búsqueda
+  const name = msg.from?.first_name ?? "";
+  // Saludos ("hola", "buenas"…) → te saluda por tu nombre; otro texto suelto = búsqueda
+  if (GREETING.test(text)) return cmdGreet(name, false);
   if (!text.startsWith("/")) return cmdSearch(text);
 
   const m = text.match(/^\/([a-z0-9_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/i);
@@ -536,6 +556,7 @@ export async function handleUpdate(u: TgUpdate) {
 
   const view = cmd.match(/^ver_(\d+)$/);
   if (view) return cmdView(Number(view[1]));
+  if (cmd === "start") return cmdGreet(name, true);
 
   const handler = ROUTES[cmd];
   if (!handler) return void (await sendHtml(`No conozco /${esc(cmd)}. Prueba /ayuda.`));

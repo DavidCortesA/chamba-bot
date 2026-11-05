@@ -80,7 +80,12 @@ export async function sendText(text: string) {
 
 export type TgUpdate = {
   update_id: number;
-  message?: { message_id: number; chat: { id: number }; text?: string };
+  message?: {
+    message_id: number;
+    chat: { id: number };
+    from?: { first_name?: string };
+    text?: string;
+  };
   callback_query?: {
     id: string;
     data?: string;
@@ -89,23 +94,35 @@ export type TgUpdate = {
 };
 
 export async function getUpdates(offset: number, timeoutSec = 0): Promise<TgUpdate[]> {
-  const body = {
-    offset,
-    timeout: timeoutSec,
-    limit: 100,
-    allowed_updates: ["message", "callback_query"],
-  };
   try {
-    return await api<TgUpdate[]>("getUpdates", body);
+    return await api<TgUpdate[]>("getUpdates", {
+      offset,
+      timeout: timeoutSec,
+      limit: 100,
+      allowed_updates: ["message", "callback_query"],
+    });
   } catch (err) {
-    // 409 = hay un webhook configurado; lo quitamos para poder usar getUpdates
+    // Con un webhook activo (Cloudflare Worker) Telegram rechaza getUpdates.
+    // NO lo quitamos solos: así el cron de Actions nunca rompe tu Worker.
     if (err instanceof TelegramError && err.status === 409 && /webhook/i.test(err.body)) {
-      await api("deleteWebhook", { drop_pending_updates: false });
-      return api<TgUpdate[]>("getUpdates", body);
+      throw new Error(
+        "Hay un webhook activo (Cloudflare Worker). Usa /setup?delete=1 para quitarlo si quieres usar getUpdates.",
+      );
     }
     throw err;
   }
 }
+
+export const setWebhook = (url: string, secretToken: string) =>
+  api("setWebhook", {
+    url,
+    secret_token: secretToken,
+    allowed_updates: ["message", "callback_query"],
+    max_connections: 10,
+    drop_pending_updates: false,
+  });
+
+export const deleteWebhook = () => api("deleteWebhook", { drop_pending_updates: false });
 
 export const answerCallback = (id: string, text: string) =>
   api("answerCallbackQuery", { callback_query_id: id, text }).catch(() => {});

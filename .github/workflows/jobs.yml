@@ -1,5 +1,8 @@
 name: Buscar vacantes
 
+# Solo busca vacantes y avisa. Los comandos de Telegram los atiende el Worker de
+# Cloudflare por webhook (ver README). No leas mensajes aquí: getUpdates no
+# funciona mientras el webhook está activo.
 on:
   schedule:
     - cron: "*/30 * * * *"
@@ -20,7 +23,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install --no-audit --no-fund
-      - run: npm start
+      - run: npm run scrape
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
